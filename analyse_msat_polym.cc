@@ -7,6 +7,10 @@
 #include <fstream> 
 #include <sstream>
 
+/**
+ * @author Falindir
+ */
+
 using namespace std;
 
 extern const int MAXLLINE    = 100000;
