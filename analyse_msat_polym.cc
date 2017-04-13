@@ -9,6 +9,7 @@
 
 /**
  * @author Falindir
+ * @version 0.0.0.1
  */
 
 using namespace std;
