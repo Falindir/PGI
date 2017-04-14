@@ -22,6 +22,47 @@ extern const int MAXNBALLELE = 10;
 
 class Microsat {
 
+    private:
+
+        int ctg_index;
+        int start;
+        int end;
+        int replen;
+        int avlen;
+        string motif;
+        int motiflen;
+        int nb_alleles;
+        int nb_genotyped_ind;
+        double heterozygosity;
+        //int** genotype;
+        //int** coverage;
+
+    public:
+
+        Microsat() {
+            this->ctg_index = -1;
+            this->start = -1;
+            this->end = -1;
+            this->replen = -1;
+            this->avlen = -1;
+            this->motif = "";
+            this->motiflen = 0;
+            this->nb_alleles = -1;
+            this->nb_genotyped_ind = 0;
+            this->heterozygosity = 0.0;
+
+
+            #pragma acc enter data create(this)
+            #pragma acc update device(this) 
+        }
+
+        ~Microsat() {
+            
+            #pragma acc exit data delete(this)
+
+        }
+
+
 
 };
 
@@ -33,7 +74,7 @@ class Contig {
         string name;
         int index;
         int nb_msat;
-        int* msat_id;
+        //int* msat_id;
         
     
     public:
@@ -42,6 +83,8 @@ class Contig {
             this->index = -1;
             this->nb_msat = 0;
             this->name = "";
+
+            
 
             #pragma acc enter data create(this)
             #pragma acc update device(this)
@@ -52,16 +95,16 @@ class Contig {
             this->nb_msat = _nb_msat;
             this->name = _name;
 
-            this->msat_id = new int[this->nb_msat];
+            //this->msat_id = new int[this->nb_msat];
 
             #pragma acc enter data create(this)
             #pragma acc update device(this)
-            #pragma acc enter data create(this->msat_id[0:this->nb_msat]) 
+            //#pragma acc enter data create(this->msat_id[0:this->nb_msat]) 
         }
 
         ~Contig() {
-            delete [] msat_id;
-            #pragma acc exit data delete(this->msat_id[0:this->nb_msat])
+            //delete [] msat_id;
+            //#pragma acc exit data delete(this->msat_id[0:this->nb_msat])
             #pragma acc exit data delete(this)
         }
 
@@ -87,6 +130,7 @@ class Dataset {
         int nb_contigs;
         Contig** ctg;
         int nb_msat;
+        Microsat** msat;
 
         void set_indiv_number(string line) {
             istringstream is(line);
@@ -107,16 +151,41 @@ class Dataset {
             int header = 0;
         
             while (getline(is, part, '\t')) {
-                if(header > 2) {
-                    //cout << "part : " << part << endl;
-                    //cout << header << endl;
-                  
+                if(header > 2) {                  
                     this->indiv_names[header - 3] = part;
                 }
                 header++;
             }
             
             #pragma acc update device(this->indiv_names[0:this->nb_indiv])   
+        }
+
+        void set_line_tab(string* tab, string line){
+            istringstream is(line);
+            string part;
+
+            bool pass = true;
+
+            int ind = 0;
+
+            while (getline(is, part, '\t')) {
+                
+                if(pass) {
+                    pass = false;
+                    istringstream is2(part);
+                    string p2;
+
+                    while (getline(is2, p2, '_')) {
+                        tab[ind] = p2;
+                        ind++;
+                    }
+                }
+                else {
+                    tab[ind] = part;
+                }
+                
+                ind++;
+            }
         }
 
     public:
@@ -195,39 +264,54 @@ class Dataset {
             //TODO need refactor
 
             if (infile.is_open()) {
-                cout << "\nreading data from file : " << file << "\n" << endl;
+                //cout << "\nreading data from file : " << file << "\n" << endl;
             }
             else {
                 cout << "\ncannot read file : " << file << endl;
                 exit(0);
             }
 
-            lig = 1;
+            lig = 0;
 
             this->ctg = new Contig*[this->nb_msat];
+            this->msat = new Microsat*[this->nb_msat];
 
-            for (int i=0; i < this->nb_msat; ++i) {
-
-                this->ctg[i] = new Contig();
-                
-            }
-
-            #pragma acc enter data create(this->ctg[0:this->nb_msat])
+            int sizeT = this->nb_indiv; // for openacc;
             
+            #pragma acc update device(this->nb_indiv)
+
+            #pragma acc enter data create(this->ctg[0:sizeT][0:1])
+            #pragma acc enter data create(this->msat[0:sizeT][0:1])
+
+        
+                       
             for( string line; getline( infile, line ); ) {
                 
-                if(lig != 1) {
-                        
+                if(lig != 0) {
+
+                    string* linetab = new string[this->nb_indiv+6];
+                    
+                    this->set_line_tab(linetab, line);
+
+                    this->ctg[lig] = new Contig();
+                    this->msat[lig] = new Microsat();
+
+                                   
+                
                 }
 
                 lig++;
             }
 
+            #pragma acc update host(this->ctg[0:sizeT][0:1])
+            #pragma acc update host(this->msat[0:sizeT][0:1])
+
+
 
             cout << "reading input file is finish" << "\n" << endl;
             infile.close();    
 
-            #pragma acc update device(this->nb_indiv)    
+                
         }
 
         int get_nb_indiv() {
