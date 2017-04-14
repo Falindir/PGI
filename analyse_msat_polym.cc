@@ -34,13 +34,14 @@ class Microsat {
         int nb_alleles;
         int nb_genotyped_ind;
         double heterozygosity;
-        //int** genotype;
-        //int** coverage;
+        int** genotype;
+        int** coverage;
+        int nb_indiv;
 
     public:
 
-        Microsat() {
-            this->ctg_index = -1;
+        Microsat(int index, int _nb_indiv) {
+            this->ctg_index = index;
             this->start = -1;
             this->end = -1;
             this->replen = -1;
@@ -50,14 +51,35 @@ class Microsat {
             this->nb_alleles = -1;
             this->nb_genotyped_ind = 0;
             this->heterozygosity = 0.0;
+            this->nb_indiv = _nb_indiv;
 
+            this->genotype = new int*[_nb_indiv];
+            this->coverage = new int*[_nb_indiv];
+
+            for(int i = 0; i < _nb_indiv; ++i) {
+                    this->genotype[i] = new int[2];
+                    this->coverage[i] = new int[2];
+            }
+            
 
             #pragma acc enter data create(this)
-            #pragma acc update device(this) 
+            #pragma acc update device(this)
+            #pragma acc enter data create(this->genotype[0:this->nb_indiv][0:2])
+            #pragma acc enter data create(this->coverage[0:this->nb_indiv][0:2]) 
         }
 
         ~Microsat() {
+
+            for (int i=0; i < this->nb_indiv; ++i) {
+                delete genotype[i];
+                delete coverage[i];
+            } 
+
+            delete [] genotype;
+            delete [] coverage;
             
+            #pragma acc exit data delete(this->genotype[0:this->nb_indiv][0:2])
+            #pragma acc exit data delete(this->coverage[0:this->nb_indiv][0:2])
             #pragma acc exit data delete(this)
 
         }
@@ -290,11 +312,13 @@ class Dataset {
                 if(lig != 0) {
 
                     string* linetab = new string[this->nb_indiv+6];
+
+                    
                     
                     this->set_line_tab(linetab, line);
 
                     this->ctg[lig] = new Contig();
-                    this->msat[lig] = new Microsat();
+                    this->msat[lig] = new Microsat(lig, sizeT);
 
                                    
                 
